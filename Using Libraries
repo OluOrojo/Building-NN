@@ -1,0 +1,53 @@
+import pandas as pd
+import numpy as np
+from pandas import Series, DataFrame
+import scipy
+from scipy import stats
+import sklearn
+from sklearn import preprocessing
+from sklearn.preprocessing import scale
+import seaborn as sb
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+
+#OPEN CSV
+filename = 'C:/Users/n0762538/Documents/Data/WheatSeedsDatasetPractice/seeds_dataset2.csv'
+datasetm = pd.read_csv(filename)
+datasetm.columns =['1', '2', '3', '4', '5', '6', '7', 'outcome']
+datasetm.head()
+
+
+#PREPROCESS DATA
+
+#Check for missing value
+datasetm.isnull().sum()
+
+#Get max and min values in each column
+max = datasetm.max()
+min = datasetm.min()
+
+#Scaling inputs
+inputs_1 = datasetm.iloc[0:209,0:7]
+y = datasetm.iloc[0:209, 7:8]
+scaled = preprocessing.MinMaxScaler()
+scaled_dataset = scaled.fit_transform(inputs_1)
+inputs = pd.DataFrame(scaled_dataset)
+
+#New dataset
+outputs = datasetm.iloc[0:209,-1]
+output = pd.Series(outputs)
+dataset = pd.concat([inputs,output], axis=1)
+print (dataset)
+
+#Split into folds, train and test set
+kf = KFold(n_splits=7)
+for train_index, test_index in kf.split(dataset):
+    print("TRAIN:", train_index, "TEST:", test_index)
+
+#Accuracy
+# Calculate accuracy percentage
+def accuracy_metric(actual, predicted):
+    return accuracy_score(actual, predicted)
