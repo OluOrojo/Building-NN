@@ -1,0 +1,120 @@
+function FF (MinError, MaxEpoch, Input, Target, eta, alpha,smallwt)
+NUMPAT = 4; NUMIN = 2; NUMHID = 2; NUMOUT = 1;
+
+NumPattern = NUMPAT+1; NumInput = NUMIN+1; 
+NumHidden = NUMHID+1; NumOutput = NUMOUT+1;
+
+
+%initialize WeightIH and DeltaWeightIH
+for j = 1 : NumHidden 
+    for i = 1 : NumInput 
+        DeltaWeightIH(i,j) = 0.0 ;
+        WeightIH(i,j) = 2.0 * ( rand(1,1) - 0.5 ) * smallwt ;
+    end
+end
+
+%initialize WeightHO and DeltaWeightHO
+for k = 1 : NumOutput 
+    for j = 1 : NumHidden 
+        DeltaWeightHO(j,k) = 0.0 ;
+        WeightHO(j,k) = 2.0 * ( rand(1,1) - 0.5 ) * smallwt ;
+    end
+end
+
+%disp (DeltaWeightIH)
+%disp (WeightIH)
+%disp (DeltaWeightHO)
+%disp (WeightHO)
+
+Epoch = 0;
+Error = 0.9 ;
+while Error > MinError && Epoch < MaxEpoch
+    Epoch = Epoch + 1;
+    %p loop over training set 
+    for np = 1 : NumPattern
+        a = 1:NumPattern;
+        t = datasample(a,NumPattern,'Replace',false);
+                
+            for p = t
+                %i loop over input units
+                %add in weighted contribution from each input unit
+                %compute sigmoid to give activation
+                %j loop computes hidden unit activations 
+                for j = 1 : NumHidden 
+                    SumH(p,j) = 0; %WeightIH(0,j); %change to zero maybe?
+                    for i = 1 : NumInput 
+                        SumH(p,j) = SumH(p,j) + Input(p,i) * WeightIH(i,j);
+                    end
+                    Hidden(p,j) = 1.0/(1.0 + exp(-SumH(p,j)));
+                end
+
+                %j loop computes hidden unit activations
+                %add in weighted contribution from each hidden unit
+                %compute sigmoid to give activation
+                %k loop computes output unit activations
+                for k = 1 : NumOutput        
+                    SumO(p,k) = 0; %WeightHO(0,k); %change to zero maybe?
+                    for j = 1 : NumHidden
+                        SumO(p,k) = SumO(p,k) + Hidden(p,j) * WeightHO(j,k);
+                    end
+
+                    Output(p,k) = 1.0/(1.0 + exp(-SumO(p,k)));
+
+                    % Sigmodial Outputs - Sum Squared Error
+                    Error = Error + 0.5 * (Target(p,k) - Output(p,k)) * (Target(p,k) - Output(p,k)); 
+                    DeltaO(k) = (Target(p,k) - Output(p,k)) * Output(p,k) * (1.0 - Output(p,k)) ;
+
+                    % Linear Outputs - Sum Squared Error
+                    OutputLinear(p,k) = SumO(p,k);
+                    DeltaOLinear(k) = Target(p,k) - Output(p,k);     
+
+
+                    %Sigmoidal Outputs - Cross-Entropy Error 
+                    ErrorCE = Error - ((Target(p,k) * log(Output(p,k)) + (1.0 - Target(p,k)) * log(1.0 - Output(p,k))));    
+                    DeltaOCE(k) = Target(p,k) - Output(p,k);     
+
+                end
+
+                %'back-propagate' errors to hidden layer
+                for j = 1 : NumHidden
+                    SumDOW(j) = 0.0 ;
+                    for k = 1 : NumOutput  
+                        SumDOW(j) = SumDOW(j) + WeightHO(j,k) * DeltaO(k);
+                    end
+                    DeltaH(j) = SumDOW(j) * Hidden(p,j) * (1.0 - Hidden(p,j));
+                end 
+
+                %update weights WeightIH
+                for j = 1 : NumHidden   
+                    DeltaWeightIH(2,j) = eta * DeltaH(j) + alpha * DeltaWeightIH(1,j);
+                    WeightIH(2,j) = WeightIH(1,j)+ DeltaWeightIH(1,j);
+                    for i = 1 : NumInput  
+                        DeltaWeightIH(i,j) = eta * Input(p,i) * DeltaH(j) + alpha * DeltaWeightIH(i,j);
+                        WeightIH(i,j) = WeightIH(i,j) + DeltaWeightIH(i,j);
+                    end
+                end
+
+                %update weights WeightHO
+                for k = 1 : NumOutput  
+                    DeltaWeightHO(2,k) = eta * DeltaO(k) + alpha * DeltaWeightHO(1,k);
+                    WeightHO(2,k) = WeightHO(1,k) + DeltaWeightHO(1,k);
+                    for j = 1 : NumHidden 
+                        DeltaWeightHO(j,k) = eta * Hidden(p,j) * DeltaO(k) + alpha * DeltaWeightHO(j,k);
+                        WeightHO(j,k) = WeightHO(j,k) + DeltaWeightHO(j,k);
+                    end
+                end
+            end
+     end
+ end
+
+
+disp(Epoch)
+disp(Error)
+%disp(Output)
+%disp(DeltaH)
+%disp (DeltaWeightIH)
+%disp (WeightIH)
+%disp (DeltaWeightHO)
+%disp (WeightHO)
+disp(p)
+disp(size(p))
