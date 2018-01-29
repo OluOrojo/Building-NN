@@ -1,0 +1,85 @@
+from random import seed
+from random import random
+import numpy as np
+from math import exp
+
+
+
+# initialize WeightIH and DeltaWeightIH
+def InitialiseIH(smallwt, NumHidden, NumInput):
+    DeltaWeightIH = np.zeros([(NumInput + 1), (NumHidden + 1)])
+    WeightIH = np.zeros([(NumInput + 1), (NumHidden + 1)])
+    for j in range(NumHidden + 1):
+        for i in range(NumInput + 1):
+            WeightIH[i][j] = 2.0 * (random() - 0.5) * smallwt
+            while WeightIH[i][j] == 0.:
+                WeightIH[i][j] = 2.0 * (random() - 0.5) * smallwt
+    print(DeltaWeightIH)
+    print(WeightIH)
+
+def InitialiseHO(smallwt, NumOutput, NumHidden):
+    DeltaWeightHO = np.zeros([(NumHidden + 1), (NumOutput + 1)])
+    WeightHO = np.zeros([(NumHidden + 1), (NumOutput + 1)])
+    for k in range(NumOutput + 1):
+        for j in range(NumHidden + 1):
+            WeightHO[j][k] = 2.0 * (random() - 0.5) * smallwt
+            while WeightHO[j][k] == 0.:
+                WeightHO[j][k] = 2.0 * (random() - 0.5) * smallwt
+    print(DeltaWeightHO)
+    print(WeightHO)
+
+Weights1 = InitialiseIH(0.05, 2, 1)
+Weights2 = InitialiseHO(0.05, 2, 1)
+
+def shufftle(Input, NumOutput, NumHidden, NumInput, WeightIH, WeightHO, eta, alpha):
+
+    n = int(len(Input) / 2)
+    np.random.shuffle(Input)
+    Train = Input[:n]
+    Test = Input[n:]
+    NumPattern = len(Input)
+    Error = 0.0
+
+    for p in range(NumPattern + 1):
+
+        Hidden = np.zeros([(NumPattern + 1), (NumHidden + 1)])
+        Output = np.zeros([(NumPattern + 1), (NumOutput + 1)])
+        Target = np.zeros([(NumPattern + 1), (NumOutput + 1)])
+        SumH = np.zeros([(NumPattern + 1), (NumHidden + 1)])
+        SumO = np.zeros([(NumPattern + 1), (NumOutput + 1)])
+        DeltaO = np.zeros([(NumOutput + 1)])
+        SumDOW = np.zeros([(NumHidden + 1)])
+        DeltaH =  np.zeros([(NumHidden + 1)])
+        DeltaWeightIH = np.zeros([(NumInput + 1), (NumHidden + 1)])
+        DeltaWeightHO = Output = np.zeros([(NumHidden + 1), (NumOutput + 1)])
+        for j in range(NumHidden + 1):
+            for i in range (NumInput + 1):
+                SumH[i][j] = Input[p][i] * WeightIH[i][j]
+        Hidden[p][j] = 1.0/(1.0 + exp(-SumH[p][j]))
+
+        #compute output unit activations and errors
+
+        for k in range(NumOutput + 1):
+            SumO[p][k] = WeightHO[1][k]
+            for j in range(NumHidden + 1):
+                SumO[p][k] += Hidden[p][j] * WeightHO[j][k]
+            Output[p][k] = 1.0 / (1.0 + exp(-SumO[p][k]))
+
+            Error += 0.5 * (Target[p][k] - Output[p][k]) * (Target[p][k] - Output[p][k])
+            DeltaO[k] = (Target[p][k] - Output[p][k]) * Output[p][k] * (1.0 - Output[p][k])
+
+        #'back-propagate' errors to hidden layer
+        for j in range(NumHidden + 1):
+            SumDOW[j] = 0.0
+            for k in range(NumOutput + 1):
+                SumDOW[j] += WeightHO[j][k] * DeltaO[k]
+            DeltaH[j] = SumDOW[j] * Hidden[p][j] * (1.0 - Hidden[p][j])
+
+        #update weights WeightIH
+        for j in range(NumHidden + 1):
+            DeltaWeightIH[0][j] = eta * DeltaH[j] + alpha * DeltaWeightIH[0][j]
+            WeightIH[0][j] += DeltaWeightIH[0][j]
+            for i in range(NumInput + 1):
+                DeltaWeightIH[i][j] = eta * Input[p][i] * DeltaH[j] + alpha * DeltaWeightIH[i][j];
+                WeightIH[i][j] += DeltaWeightIH[i][j]
+
