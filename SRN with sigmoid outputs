@@ -1,0 +1,207 @@
+import csv
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, r2_score
+import numpy as np
+import numpy.random as r
+import matplotlib.pyplot as plt
+import random
+
+random.seed(25)
+
+def readcsv(filename):
+    ifile = open(filename, "rU")
+    reader = csv.reader(ifile, delimiter=",")
+
+    rownum = 0
+    dataset = []
+
+    for row in reader:
+        dataset.append(row)
+        rownum += 1
+    data = []
+    for s in dataset:
+        Dataset = [float(i) for i in s]
+        data.append(Dataset)
+    return [data, rownum]
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def sigmoid_deriv(x):
+    return x * (1 - x)
+
+def initialise_weights(nn_structure):
+    weights = {}
+    bias = {}
+    c_weights = {1: np.ones((nn_structure[1], nn_structure[1]))}
+    context = {0: r.random_sample((nn_structure[1]))}
+    for l in range(1, len(nn_structure)):
+        weights[l] = r.random_sample((nn_structure[l], nn_structure[l-1]))
+        bias[l] = r.random_sample((nn_structure[l],))
+    return weights, bias, c_weights, context
+
+
+def initialise_weights_changes(nn_structure):
+    deltaweights = {}
+    deltabias = {}
+    deltac_weights = {1: np.zeros((nn_structure[1], nn_structure[1]))}
+    for l in range(1, len(nn_structure)):
+        deltaweights[l] = np.zeros((nn_structure[l], nn_structure[l-1]))
+        deltabias[l] = np.zeros((nn_structure[l],))
+    return deltaweights, deltabias, deltac_weights
+
+
+def feed_forward(x, weights, bias, c_weights, context, i, hidden_layer):
+    hidden_layer[i] = {1: x}
+    activations = {}
+    for l in range(1, len(weights) + 1):
+        node_in = hidden_layer[i][l]
+        if l == 1:
+            activations[l+1] = weights[l].dot(node_in) + c_weights[l].dot(context[i]) + bias[l]
+        else:
+            activations[l+1] = weights[l].dot(node_in) + bias[l]
+        hidden_layer[i][l+1] = sigmoid(activations[l+1])
+        if l == 1:
+            context[i + 1] = hidden_layer[i][l+1]
+    return hidden_layer, activations
+
+
+def calculate_out_layer_delta(y, hidden_layer):#, activations):
+    # delta^(nl) = -(y_i - h_i^(nl)) * f'(z_i^(nl))
+    return -(y - hidden_layer) * sigmoid_deriv(hidden_layer)
+
+
+def calculate_hidden_delta(delta_plus_1, weights_l):#, z_l):
+    # delta^(l) = (transpose(W^(l)) * delta^(l+1)) * f'(z^(l))
+    return np.dot(np.transpose(weights_l), delta_plus_1) #* sigmoid_deriv(z_l)
+
+
+def train_nn(nn_structure, X, y, iter_num=1000, alpha=0.25, momentum = 0.8, bptt = 3):
+    weights, bias, c_weights, context = initialise_weights(nn_structure)
+    cnt = 0
+    m = len(y)
+    avg_cost_func = []
+    print('Starting gradient descent for {} iterations'.format(iter_num))
+
+    while cnt < iter_num:
+        if cnt%1000 == 0:
+            print('Iteration {} of {}'.format(cnt, iter_num))
+        deltaweights, deltabias, deltac_weights = initialise_weights_changes(nn_structure)
+        avg_cost = 0
+        hidden_layer = {}
+        delta = {}
+        bp = []
+        for i in range(len(y)):
+            # perform the feed forward pass and return the stored h and z values, to be used in the gradient descent step
+            hidden_layer, activations = feed_forward(X[i], weights, bias, c_weights, context, i, hidden_layer)
+            bp.append(i)
+
+            # loop from nl-1 to 1 backpropagating the errors
+            if len(bp) == bptt:
+                for j in reversed(bp):
+                    delta[j] = {}
+                    if j == bp[-1]:
+                        for l in range(len(nn_structure), 0, -1):
+                            if l == len(nn_structure):
+                                delta[j][l] = calculate_out_layer_delta(y[j], hidden_layer[j][l])#, hidden_layer[j][l])
+                                avg_cost += np.linalg.norm((y[j] - hidden_layer[j][l]))
+                            else:
+                                if l > 1:
+                                    delta[j][l] = calculate_hidden_delta(delta[j][l+1], weights[l]) * sigmoid_deriv(hidden_layer[j][l])
+
+                    else:
+                        for l in range(len(nn_structure), 0, -1):
+                            if l == len(nn_structure):
+                                delta[j][l] = calculate_out_layer_delta(y[j], hidden_layer[j][l])#, hidden_layer[j][l])
+                                avg_cost += np.linalg.norm((y[j] - hidden_layer[j][l]))
+                            else:
+                                if l > 1:
+                                    delta[j][l] = calculate_hidden_delta(delta[j][l + 1], weights[l]) + calculate_hidden_delta(delta[j + 1][l], c_weights[1]) * sigmoid_deriv(hidden_layer[j][l])
+
+
+                    for l in range(len(nn_structure) - 1, 0, -1):
+                        deltaweights[l] = (-alpha * np.dot(delta[i][l + 1][:, np.newaxis], np.transpose(hidden_layer[i][l][:, np.newaxis]))) + (momentum * deltaweights[l])
+                        deltabias[l] = (-alpha * delta[i][l + 1])
+                        if l == 1:
+                           deltac_weights[l] += (-alpha * np.dot(delta[i][1 + 1][:, np.newaxis], np.transpose(context[i][:, np.newaxis]))) + (momentum * deltac_weights[l])
+
+                # perform the gradient descent step for the weights in each layer
+                for l in range(len(nn_structure) - 1, 0, -1):
+                    weights[l] += (1.0 / bptt * deltaweights[l])
+                    bias[l] += (1.0 / bptt * deltabias[l])
+                    if l == 1:
+                       c_weights[l] += (1.0 / bptt * deltac_weights[l])
+                # print(weights)
+
+                bp = []
+                deltaweights, deltabias, deltac_weights = initialise_weights_changes(nn_structure)
+
+        # complete the average cost calculation
+        avg_cost = 1.0 / m * avg_cost
+        if cnt % 1000 == 0:
+           print('Error', avg_cost)
+        avg_cost_func.append(avg_cost)
+        cnt += 1
+    return weights, bias, avg_cost_func, c_weights, context
+
+def predict_y(weights, bias, X, c_weights, context):
+    m = X.shape[0]
+    y = np.zeros((m,))
+    for i in range(m):
+        hidden_layer = {1: X[i]}
+        for l in range(1, len(weights) + 1):
+            node_in = hidden_layer[l]
+            if l == 1:
+                activations = weights[l].dot(node_in) + c_weights[l].dot(context[l]) + bias[l]
+            else:
+                activations = weights[l].dot(node_in) + bias[l]
+            hidden_layer[l + 1] = sigmoid(activations)
+        y[i] = hidden_layer[3]
+    print(y)
+    return y
+
+if __name__ == "__main__":
+    # load data and scale
+    filename = 'C:/Users/n0762538/Documents/Data/MackeyGlass/MackeyGlass.csv'
+
+
+    dataset, rownum = readcsv(filename)
+    #np.random.shuffle(dataset)
+
+    dataset = np.array(dataset)
+
+    # define data
+    no = int(0.70 * len(dataset))
+    train_data = dataset[0:no]
+    test_data = dataset[no:-1]
+    train_output = dataset[1:no + 1]
+    test_output = dataset[no + 1:]
+
+    X = train_data
+    y = train_output
+
+    # setup the NN structure
+    nn_structure = [len(dataset[0]), 3, len(dataset[0])]
+    # train the NN
+    weights, bias, avg_cost_func, c_weights, context = train_nn(nn_structure, X, y)
+    # plot the avg_cost_func
+    plt.plot(avg_cost_func)
+    plt.ylabel('Average J')
+    plt.xlabel('Iteration number')
+    plt.show()
+    # get the prediction accuracy and print
+
+    print(weights)
+    print('test:', test_output)
+
+    y_pred = predict_y(weights, bias, test_data, c_weights, context)
+    print('Prediction accuracy is {}%'.format(r2_score(test_output, y_pred) * 100))
+    #plt.plot(train_data)
+    plt.plot(y_pred)
+    plt.plot(test_output)
+
+    plt.title('Approach 1')
+    plt.ylabel('Predicted')
+    plt.xlabel('Iteration number')
+    plt.show()
